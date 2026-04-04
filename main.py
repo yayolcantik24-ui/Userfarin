@@ -29,18 +29,18 @@ PROMO_TEXT = (
 )
 
 # Global variable untuk ID pesan Dashboard
-status_msg_id = None 
+status_msg_id = None
 
 app = Client(
     "farin_userbot",
     api_id=API_ID,
     api_hash=API_HASH,
     session_string=SESSION_STRING,
-    sleep_threshold=120 # Handle FloodWait lebih lama secara otomatis
+    sleep_threshold=120  # Otomatis handle FloodWait yang lama
 )
 
 async def update_dashboard(stats_content):
-    """Update tampilan log dashboard agar bersih (Dashboard Mode)"""
+    """Mengedit satu pesan log agar channel tetap bersih (Dashboard Mode)"""
     global status_msg_id
     now = datetime.now(WIB).strftime("%d/%m/%Y %H:%M:%S")
     
@@ -56,7 +56,7 @@ async def update_dashboard(stats_content):
             status_msg_id = msg.id
     except Exception:
         try:
-            # Jika pesan dihapus atau error, kirim baru
+            # Jika pesan lama dihapus, kirim pesan baru
             msg = await app.send_message(LOG_CHANNEL, full_text)
             status_msg_id = msg.id
         except:
@@ -69,7 +69,7 @@ async def auto_promo():
             await app.start()
     except errors.AuthKeyDuplicated:
         print("Error 409: Session bentrok! Menunggu restart...")
-        await asyncio.sleep(10)
+        await asyncio.sleep(15)
         return
 
     await update_dashboard("🚀 **Status:** Userbot Online\n📡 **System:** Overpower Mode Aktif (600+ Grup)")
@@ -85,7 +85,7 @@ async def auto_promo():
                     if dialog.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
                         groups.append(dialog.chat.id)
                 except (errors.ChannelPrivate, errors.ChatAdminRequired, errors.UserBannedInChannel):
-                    # Auto Leave jika grup sudah tidak bisa diakses
+                    # AUTO LEAVE jika grup sudah tidak bisa diakses
                     try:
                         await app.leave_chat(dialog.chat.id)
                     except: pass
@@ -100,8 +100,9 @@ async def auto_promo():
             await asyncio.sleep(300)
             continue
 
-        # Acak urutan kirim
+        # Acak urutan kirim agar terlihat natural
         random.shuffle(groups)
+        
         success, failed, left = 0, 0, 0
 
         for index, chat_id in enumerate(groups):
@@ -122,6 +123,7 @@ async def auto_promo():
                 except: pass
                 
             except errors.FloodWait as e:
+                # Jika kena limit massal dari Telegram
                 await update_dashboard(f"⚠️ **FloodWait!** Limit `{e.value}` detik.")
                 await asyncio.sleep(e.value)
                 try:
@@ -132,7 +134,7 @@ async def auto_promo():
             except Exception:
                 failed += 1
 
-            # Update dashboard setiap 10 grup agar tidak overload API
+            # Update Dashboard setiap 10 grup agar hemat request API
             if (index + 1) % 10 == 0 or (index + 1) == total_grup:
                 pct = ((index + 1) / total_grup) * 100
                 stats = (
@@ -145,10 +147,11 @@ async def auto_promo():
                 )
                 await update_dashboard(stats)
 
-            # JEDA AMAN (Sangat penting untuk akun tahan lama)
-            await asyncio.sleep(random.randint(1, 3))
+            # JEDA AMAN (Sangat penting agar akun tidak di-ban)
+            # Menggunakan jeda 35-65 detik per pesan
+            await asyncio.sleep(random.randint(1, 6))
 
-        # Ringkasan Akhir
+        # Ringkasan Akhir Putaran
         await update_dashboard(
             f"🏁 **Status:** Putaran Selesai!\n\n"
             f"✅ **Total Berhasil:** {success}\n"
@@ -157,7 +160,7 @@ async def auto_promo():
             f"💤 **Mode:** Istirahat (2 Jam)"
         )
         
-        # Jeda 2 jam agar akun tidak disikat Telegram
+        # Jeda 2 jam antar putaran massal
         await asyncio.sleep(1200)
 
 if __name__ == "__main__":
@@ -167,7 +170,7 @@ if __name__ == "__main__":
             app.run(auto_promo())
         except errors.AuthKeyDuplicated:
             print("Koneksi bentrok (409). Mematikan proses lama...")
-            asyncio.sleep(15)
+            asyncio.run(asyncio.sleep(15))
         except Exception as e:
             print(f"Sistem Restart: {e}")
-            asyncio.sleep(10)
+            asyncio.run(asyncio.sleep(10))
