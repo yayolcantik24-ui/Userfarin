@@ -1,20 +1,19 @@
 import asyncio
 import random
 import os
+import re
 from datetime import datetime
 import pytz
-from pyrogram import Client, enums, errors
+from pyrogram import Client, enums, errors, raw
 
-# --- CONFIGURATION (AMBIL DARI VARIABLES RAILWAY) ---
+# --- CONFIGURATION (RAILWAY) ---
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
 LOG_CHANNEL = "@farinmodssv2"
-
-# Setting Zona Waktu Indonesia (WIB)
 WIB = pytz.timezone('Asia/Jakarta')
 
-# --- KONTEN PROMOSI FARIN SHOP ---
+# --- KONTEN PROMOSI TERBARU FARIN SHOP ---
 PROMO_TEXT = (
 "📱 **NOKOS MURAH & INSTAN** 📱\n\n"
 "• Harga mulai Rp900\n"
@@ -28,149 +27,178 @@ PROMO_TEXT = (
 "🚀 **Langsung gas order sekarang!**"
 )
 
-# Global variable untuk ID pesan Dashboard
 status_msg_id = None
+promo_log_id = None # Khusus untuk edit log progres promo
 
 app = Client(
     "farin_userbot",
     api_id=API_ID,
     api_hash=API_HASH,
     session_string=SESSION_STRING,
-    sleep_threshold=120  # Otomatis handle FloodWait yang lama
+    sleep_threshold=120
 )
 
 async def update_dashboard(stats_content):
-    """Mengedit satu pesan log agar channel tetap bersih (Dashboard Mode)"""
     global status_msg_id
     now = datetime.now(WIB).strftime("%d/%m/%Y %H:%M:%S")
-    
     header = f"🛡️ **FARIN SHOP MONITORING**\n{'─'*25}\n"
     footer = f"\n{'─'*25}\n🕒 *Last Update: {now} WIB*"
     full_text = header + stats_content + footer
-    
     try:
         if status_msg_id:
             await app.edit_message_text(LOG_CHANNEL, status_msg_id, full_text)
         else:
             msg = await app.send_message(LOG_CHANNEL, full_text)
             status_msg_id = msg.id
-    except Exception:
+    except:
         try:
-            # Jika pesan lama dihapus, kirim pesan baru
             msg = await app.send_message(LOG_CHANNEL, full_text)
             status_msg_id = msg.id
-        except:
-            pass
+        except: pass
 
+async def update_promo_log(content):
+    """Fungsi khusus untuk edit pesan log agar tidak spam"""
+    global promo_log_id
+    try:
+        if promo_log_id:
+            await app.edit_message_text(LOG_CHANNEL, promo_log_id, content)
+        else:
+            msg = await app.send_message(LOG_CHANNEL, content)
+            promo_log_id = msg.id
+    except:
+        try:
+            msg = await app.send_message(LOG_CHANNEL, content)
+            promo_log_id = msg.id
+        except: pass
+
+# --- FITUR: BULK JOIN ---
+@app.on_message(enums.ChatType.PRIVATE)
+async def handle_bulk_join(client, message):
+    if message.text and message.text.lower().startswith("/join"):
+        links = re.findall(r'(https?://t\.me/\S+)', message.text)
+        if not links:
+            await message.reply("❌ Tidak ada link ditemukan.")
+            return
+
+        report = await message.reply(f"⏳ Memproses **{len(links)}** link...")
+        success, failed = 0, 0
+        error_logs = ""
+
+        for link in links:
+            try:
+                slug = link.split('/')[-1]
+                if "addlist" in link:
+                    check = await client.invoke(raw.functions.chatlists.CheckChatlistInvite(slug=slug))
+                    input_peers = []
+                    for chat in check.chats:
+                        if isinstance(chat, raw.types.Chat) or isinstance(chat, raw.types.Channel):
+                            if isinstance(chat, raw.types.Chat):
+                                input_peers.append(raw.types.InputPeerChat(chat_id=chat.id))
+                            else:
+                                input_peers.append(raw.types.InputPeerChannel(channel_id=chat.id, access_hash=chat.access_hash))
+                    await client.invoke(raw.functions.chatlists.JoinChatlistInvite(slug=slug, peers=input_peers))
+                    await asyncio.sleep(2)
+                    try:
+                        res = await client.invoke(raw.functions.messages.GetDialogFilters())
+                        for filt in res:
+                            if hasattr(filt, "id") and filt.id != 0:
+                                await client.invoke(raw.functions.messages.UpdateDialogFilter(id=filt.id))
+                    except: pass
+                    success += 1
+                else:
+                    await client.join_chat(link)
+                    success += 1
+                await asyncio.sleep(random.randint(3, 7))
+            except errors.FloodWait as e:
+                error_logs += f"• {link}: FloodWait {e.value}s\n"
+                failed += 1
+            except Exception as e:
+                error_logs += f"• {link}: {str(e)}\n"
+                failed += 1
+
+        final_msg = f"✅ **Bulk Join Selesai!**\n🔥 Sukses: {success}\n❌ Gagal: {failed}\n"
+        if error_logs:
+            final_msg += f"\n**Detail Error:**\n{error_logs}"
+        await report.edit_text(final_msg)
+
+# --- FITUR: AUTO PROMO ---
 async def auto_promo():
-    # Menangani Error 409 (Conflict) saat startup
+    global promo_log_id
     try:
         if not app.is_connected:
             await app.start()
-    except errors.AuthKeyDuplicated:
-        print("Error 409: Session bentrok! Menunggu restart...")
-        await asyncio.sleep(15)
-        return
+    except: pass
 
-    await update_dashboard("🚀 **Status:** Userbot Online\n📡 **System:** Overpower Mode Aktif (600+ Grup)")
+    await update_dashboard("🚀 **Status:** Online\n📡 **System:** Fixed Join Folder Mode")
     
     while True:
-        await update_dashboard("🔍 **Status:** Memindai & Membersihkan Grup Sampah...")
-        
+        promo_log_id = None # Reset log pesan setiap mulai sesi baru
+        await update_dashboard("🔍 **Status:** Scanning Groups...")
         groups = []
         try:
-            # Bypass error 406 saat scan dialog
             async for dialog in app.get_dialogs():
-                try:
-                    if dialog.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-                        groups.append(dialog.chat.id)
-                except (errors.ChannelPrivate, errors.ChatAdminRequired, errors.UserBannedInChannel):
-                    # AUTO LEAVE jika grup sudah tidak bisa diakses
-                    try:
-                        await app.leave_chat(dialog.chat.id)
-                    except: pass
-                except Exception:
-                    continue
-        except Exception as e:
-            await update_dashboard(f"⚠️ **Scan Terhambat:** {e}\nLanjut dengan grup yang terbaca.")
+                if dialog.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
+                    groups.append(dialog.chat.id)
+        except: pass
 
-        total_grup = len(groups)
-        if total_grup == 0:
-            await update_dashboard("⚠️ **Status:** Tidak ada grup ditemukan!")
-            await asyncio.sleep(300)
-            continue
+        if not groups:
+            await update_dashboard("⚠️ **Status:** Grup Kosong."); await asyncio.sleep(300); continue
 
-        # Acak urutan kirim agar terlihat natural
         random.shuffle(groups)
-        
-        success, failed, left = 0, 0, 0
+        s, f, l = 0, 0, 0
 
         for index, chat_id in enumerate(groups):
             try:
+                # Mengirim pesan promo ke grup
                 await app.send_message(chat_id, PROMO_TEXT)
-                success += 1
+                s += 1
                 
-            # --- LOGIKA AUTO-LEAVE (GRUP MATI/BAN/PRIVATE) ---
-            except (errors.ChatWriteForbidden, 
-                    errors.UserBannedInChannel, 
-                    errors.ChatAdminRequired, 
-                    errors.ChannelPrivate,
-                    errors.ChatInvalid,
-                    errors.PeerIdInvalid):
-                try:
-                    await app.leave_chat(chat_id)
-                    left += 1
-                except: pass
-                
-            except errors.FloodWait as e:
-                # Jika kena limit massal dari Telegram
-                await update_dashboard(f"⚠️ **FloodWait!** Limit `{e.value}` detik.")
-                await asyncio.sleep(e.value)
-                try:
-                    await app.send_message(chat_id, PROMO_TEXT)
-                    success += 1
-                except: failed += 1
-                
-            except Exception:
-                failed += 1
-
-            # Update Dashboard setiap 10 grup agar hemat request API
-            if (index + 1) % 10 == 0 or (index + 1) == total_grup:
-                pct = ((index + 1) / total_grup) * 100
-                stats = (
-                    f"📤 **Status:** Promosi Massal Aktif\n\n"
-                    f"📊 **Progres:** {index + 1}/{total_grup} ({pct:.1f}%)\n"
-                    f"✅ **Terkirim:** {success}\n"
-                    f"❌ **Gagal:** {failed}\n"
-                    f"🚪 **Auto-Leave (Mati/Ban):** {left}\n\n"
-                    f"ℹ️ *Grup bermasalah otomatis ditinggalkan.*"
+                # Update Log (HANYA EDIT PESAN agar tidak spam)
+                current_time = datetime.now(WIB).strftime("%H:%M:%S")
+                log_text = (
+                    f"📤 **PROMO PROGRESS**\n"
+                    f"{'─'*20}\n"
+                    f"✅ Sukses: **{s}**\n"
+                    f"❌ Gagal: **{f}**\n"
+                    f"🚪 Keluar: **{l}**\n\n"
+                    f"📍 Last: `{chat_id}`\n"
+                    f"📊 Progress: {index+1}/{len(groups)}\n"
+                    f"🕒 Time: {current_time} WIB"
                 )
-                await update_dashboard(stats)
+                await update_promo_log(log_text)
 
-            # JEDA AMAN (Sangat penting agar akun tidak di-ban)
-            # Menggunakan jeda 35-65 detik per pesan
-            await asyncio.sleep(random.randint(1, 6))
+            except (errors.ChatWriteForbidden, errors.UserBannedInChannel, errors.ChannelPrivate):
+                # KIRIM PESAN BARU jika bot keluar grup agar muncul notifikasi
+                try: 
+                    await app.leave_chat(chat_id)
+                    l += 1
+                    await app.send_message(LOG_CHANNEL, f"🚪 **AUTO LEAVE**\nBot baru saja keluar dari grup `{chat_id}` karena dilarang mengirim pesan.")
+                except: pass
+            except errors.FloodWait as e:
+                # KIRIM PESAN BARU untuk info FloodWait
+                await app.send_message(LOG_CHANNEL, f"⏳ **FLOODWAIT**\nTerkena limit! Menunggu {e.value} detik sebelum lanjut.")
+                await asyncio.sleep(e.value)
+                try: 
+                    await app.send_message(chat_id, PROMO_TEXT)
+                    s += 1
+                except: f += 1
+            except: f += 1
 
-        # Ringkasan Akhir Putaran
-        await update_dashboard(
-            f"🏁 **Status:** Putaran Selesai!\n\n"
-            f"✅ **Total Berhasil:** {success}\n"
-            f"❌ **Total Gagal:** {failed}\n"
-            f"🚪 **Total Grup Dihapus:** {left}\n\n"
-            f"💤 **Mode:** Istirahat (2 Jam)"
-        )
-        
-        # Jeda 2 jam antar putaran massal
-        await asyncio.sleep(1200)
+            # Update Dashboard Utama setiap 10 grup
+            if (index + 1) % 10 == 0 or (index + 1) == len(groups):
+                pct = ((index + 1) / len(groups)) * 100
+                await update_dashboard(f"📤 **Promo Aktif**\n📊 {index+1}/{len(groups)} ({pct:.1f}%)\n✅ {s} | ❌ {f} | 🚪 {l}")
+
+            await asyncio.sleep(random.randint(1, 3))
+
+        await update_dashboard(f"🏁 **Selesai!**\n✅ {s} | 🚪 {l}\n💤 Istirahat: 10 menit")
+        # Pesan penutup sesi
+        await app.send_message(LOG_CHANNEL, f"🏁 **PROMO SELESAI**\nBerhasil promosi ke {s} grup. Bot istirahat dulu.")
+        await asyncio.sleep(2000)
 
 if __name__ == "__main__":
-    # Loop utama untuk menangani restart otomatis jika terjadi Conflict (409)
     while True:
         try:
             app.run(auto_promo())
-        except errors.AuthKeyDuplicated:
-            print("Koneksi bentrok (409). Mematikan proses lama...")
-            asyncio.run(asyncio.sleep(15))
-        except Exception as e:
-            print(f"Sistem Restart: {e}")
+        except Exception:
             asyncio.run(asyncio.sleep(10))
