@@ -28,6 +28,7 @@ PROMO_TEXT = (
 "🚀 **Langsung gas order sekarang!**"
 )
 
+# Global variable untuk ID pesan Dashboard
 status_msg_id = None 
 
 app = Client(
@@ -35,13 +36,14 @@ app = Client(
     api_id=API_ID,
     api_hash=API_HASH,
     session_string=SESSION_STRING,
-    sleep_threshold=60 
+    sleep_threshold=120 # Handle FloodWait lebih lama secara otomatis
 )
 
 async def update_dashboard(stats_content):
-    """Update tampilan log dashboard agar tetap rapi dan profesional"""
+    """Update tampilan log dashboard agar bersih (Dashboard Mode)"""
     global status_msg_id
     now = datetime.now(WIB).strftime("%d/%m/%Y %H:%M:%S")
+    
     header = f"🛡️ **FARIN SHOP MONITORING**\n{'─'*25}\n"
     footer = f"\n{'─'*25}\n🕒 *Last Update: {now} WIB*"
     full_text = header + stats_content + footer
@@ -54,43 +56,51 @@ async def update_dashboard(stats_content):
             status_msg_id = msg.id
     except Exception:
         try:
+            # Jika pesan dihapus atau error, kirim baru
             msg = await app.send_message(LOG_CHANNEL, full_text)
             status_msg_id = msg.id
-        except: pass
+        except:
+            pass
 
 async def auto_promo():
-    if not app.is_connected:
-        await app.start()
-        
-    await update_dashboard("🚀 **Status:** Userbot Online\n📡 **System:** Mendeteksi 600+ grup...")
+    # Menangani Error 409 (Conflict) saat startup
+    try:
+        if not app.is_connected:
+            await app.start()
+    except errors.AuthKeyDuplicated:
+        print("Error 409: Session bentrok! Menunggu restart...")
+        await asyncio.sleep(10)
+        return
+
+    await update_dashboard("🚀 **Status:** Userbot Online\n📡 **System:** Overpower Mode Aktif (600+ Grup)")
     
     while True:
-        await update_dashboard("🔍 **Status:** Memindai & Membersihkan Grup...")
+        await update_dashboard("🔍 **Status:** Memindai & Membersihkan Grup Sampah...")
         
         groups = []
-        # Deteksi awal grup yang bermasalah saat scan dialog
         try:
+            # Bypass error 406 saat scan dialog
             async for dialog in app.get_dialogs():
                 try:
-                    # Filter hanya grup dan supergroup
                     if dialog.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
                         groups.append(dialog.chat.id)
-                except (errors.ChannelPrivate, errors.ChatAdminRequired):
-                    # Jika grup sudah di-ban atau private saat discan, langsung keluar
+                except (errors.ChannelPrivate, errors.ChatAdminRequired, errors.UserBannedInChannel):
+                    # Auto Leave jika grup sudah tidak bisa diakses
                     try:
                         await app.leave_chat(dialog.chat.id)
                     except: pass
                 except Exception:
                     continue
         except Exception as e:
-            await update_dashboard(f"⚠️ **Scan Terhambat:** {e}\nTetap lanjut dengan grup yang terbaca.")
+            await update_dashboard(f"⚠️ **Scan Terhambat:** {e}\nLanjut dengan grup yang terbaca.")
 
         total_grup = len(groups)
         if total_grup == 0:
-            await update_dashboard("⚠️ **Status:** Tidak ada grup aktif ditemukan.")
+            await update_dashboard("⚠️ **Status:** Tidak ada grup ditemukan!")
             await asyncio.sleep(300)
             continue
 
+        # Acak urutan kirim
         random.shuffle(groups)
         success, failed, left = 0, 0, 0
 
@@ -98,25 +108,22 @@ async def auto_promo():
             try:
                 await app.send_message(chat_id, PROMO_TEXT)
                 success += 1
-            
-            # LOGIKA DETEKSI GRUP BLOKIR / BAN / PRIVATE
+                
+            # --- LOGIKA AUTO-LEAVE (GRUP MATI/BAN/PRIVATE) ---
             except (errors.ChatWriteForbidden, 
                     errors.UserBannedInChannel, 
                     errors.ChatAdminRequired, 
                     errors.ChannelPrivate,
                     errors.ChatInvalid,
                     errors.PeerIdInvalid):
-                # Ini adalah grup yang sudah memblokir kamu atau di-ban Telegram
                 try:
                     await app.leave_chat(chat_id)
                     left += 1
                 except: pass
                 
             except errors.FloodWait as e:
-                # Jika kena limit massal, lapor dan istirahat
-                await update_dashboard(f"⚠️ **FloodWait!** Limit `{e.value}` detik.\nMenunggu giliran aman...")
+                await update_dashboard(f"⚠️ **FloodWait!** Limit `{e.value}` detik.")
                 await asyncio.sleep(e.value)
-                # Coba sekali lagi setelah tunggu
                 try:
                     await app.send_message(chat_id, PROMO_TEXT)
                     success += 1
@@ -125,33 +132,42 @@ async def auto_promo():
             except Exception:
                 failed += 1
 
-            # Update log setiap 10 grup agar tidak overload
-            if (index + 1) % 5 == 0 or (index + 1) == total_grup:
+            # Update dashboard setiap 10 grup agar tidak overload API
+            if (index + 1) % 10 == 0 or (index + 1) == total_grup:
                 pct = ((index + 1) / total_grup) * 100
                 stats = (
                     f"📤 **Status:** Promosi Massal Aktif\n\n"
                     f"📊 **Progres:** {index + 1}/{total_grup} ({pct:.1f}%)\n"
                     f"✅ **Terkirim:** {success}\n"
                     f"❌ **Gagal:** {failed}\n"
-                    f"🚪 **Grup Diblokir/Ban:** {left}\n"
-                    f"ℹ️ *Grup terblokir otomatis ditinggalkan.*"
+                    f"🚪 **Auto-Leave (Mati/Ban):** {left}\n\n"
+                    f"ℹ️ *Grup bermasalah otomatis ditinggalkan.*"
                 )
                 await update_dashboard(stats)
 
-            # JEDA AMAN (Sangat Penting untuk 600+ grup)
-            await asyncio.sleep(random.randint(1, 5))
+            # JEDA AMAN (Sangat penting untuk akun tahan lama)
+            await asyncio.sleep(random.randint(1, 3))
 
-        # Selesai Putaran
+        # Ringkasan Akhir
         await update_dashboard(
             f"🏁 **Status:** Putaran Selesai!\n\n"
             f"✅ **Total Berhasil:** {success}\n"
             f"❌ **Total Gagal:** {failed}\n"
             f"🚪 **Total Grup Dihapus:** {left}\n\n"
-            f"💤 **Mode:** Istirahat (2 Jam)\n"
-            f"📅 *Putaran berikutnya akan otomatis dimulai.*"
+            f"💤 **Mode:** Istirahat (2 Jam)"
         )
-        # Istirahat 2 jam agar akun tidak dianggap spammer agresif
-        await asyncio.sleep(1800)
+        
+        # Jeda 2 jam agar akun tidak disikat Telegram
+        await asyncio.sleep(1200)
 
 if __name__ == "__main__":
-    app.run(auto_promo())
+    # Loop utama untuk menangani restart otomatis jika terjadi Conflict (409)
+    while True:
+        try:
+            app.run(auto_promo())
+        except errors.AuthKeyDuplicated:
+            print("Koneksi bentrok (409). Mematikan proses lama...")
+            asyncio.sleep(15)
+        except Exception as e:
+            print(f"Sistem Restart: {e}")
+            asyncio.sleep(10)
