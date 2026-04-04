@@ -28,21 +28,20 @@ PROMO_TEXT = (
 "🚀 **Langsung gas order sekarang!**"
 )
 
-# Variabel global untuk menyimpan ID pesan agar bisa di-edit
 status_msg_id = None 
 
 app = Client(
     "farin_userbot",
     api_id=API_ID,
     api_hash=API_HASH,
-    session_string=SESSION_STRING
+    session_string=SESSION_STRING,
+    sleep_threshold=60 
 )
 
 async def update_dashboard(stats_content):
-    """Fungsi untuk mengupdate satu pesan log (Dashboard Mode)"""
+    """Update tampilan log dashboard agar tetap rapi dan profesional"""
     global status_msg_id
     now = datetime.now(WIB).strftime("%d/%m/%Y %H:%M:%S")
-    
     header = f"🛡️ **FARIN SHOP MONITORING**\n{'─'*25}\n"
     footer = f"\n{'─'*25}\n🕒 *Last Update: {now} WIB*"
     full_text = header + stats_content + footer
@@ -54,101 +53,105 @@ async def update_dashboard(stats_content):
             msg = await app.send_message(LOG_CHANNEL, full_text)
             status_msg_id = msg.id
     except Exception:
-        # Jika pesan lama dihapus atau terjadi error, kirim pesan baru
         try:
             msg = await app.send_message(LOG_CHANNEL, full_text)
             status_msg_id = msg.id
-        except Exception as e:
-            print(f"Gagal update log: {e}")
+        except: pass
 
 async def auto_promo():
-    # Pastikan client aktif
     if not app.is_connected:
         await app.start()
         
-    await update_dashboard("🚀 **Status:** Userbot Online\n📡 **System:** Menyiapkan putaran promosi...")
+    await update_dashboard("🚀 **Status:** Userbot Online\n📡 **System:** Mendeteksi 600+ grup...")
     
     while True:
-        await update_dashboard("🔍 **Status:** Sedang memindai daftar grup...")
+        await update_dashboard("🔍 **Status:** Memindai & Membersihkan Grup...")
         
         groups = []
+        # Deteksi awal grup yang bermasalah saat scan dialog
         try:
-            # Ambil semua dialog grup & supergroup
             async for dialog in app.get_dialogs():
-                if dialog.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
-                    groups.append(dialog.chat.id)
+                try:
+                    # Filter hanya grup dan supergroup
+                    if dialog.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
+                        groups.append(dialog.chat.id)
+                except (errors.ChannelPrivate, errors.ChatAdminRequired):
+                    # Jika grup sudah di-ban atau private saat discan, langsung keluar
+                    try:
+                        await app.leave_chat(dialog.chat.id)
+                    except: pass
+                except Exception:
+                    continue
         except Exception as e:
-            await update_dashboard(f"❌ **Error Scan:** {e}\n🔄 Mencoba lagi dalam 1 menit...")
-            await asyncio.sleep(60)
-            continue
+            await update_dashboard(f"⚠️ **Scan Terhambat:** {e}\nTetap lanjut dengan grup yang terbaca.")
 
         total_grup = len(groups)
         if total_grup == 0:
-            await update_dashboard("⚠️ **Status:** Tidak ada grup ditemukan!\nPastikan akun sudah join grup.")
+            await update_dashboard("⚠️ **Status:** Tidak ada grup aktif ditemukan.")
             await asyncio.sleep(300)
             continue
 
-        # Acak urutan grup agar terlihat natural bagi sistem Telegram
         random.shuffle(groups)
-        
-        success_count = 0
-        failed_count = 0
-        left_count = 0
+        success, failed, left = 0, 0, 0
 
         for index, chat_id in enumerate(groups):
             try:
-                # Kirim promosi
                 await app.send_message(chat_id, PROMO_TEXT)
-                success_count += 1
-                
-            except (errors.ChatWriteForbidden, errors.UserBannedInChannel, errors.ChatAdminRequired):
-                # Auto-leave jika diblokir/tidak boleh kirim pesan
+                success += 1
+            
+            # LOGIKA DETEKSI GRUP BLOKIR / BAN / PRIVATE
+            except (errors.ChatWriteForbidden, 
+                    errors.UserBannedInChannel, 
+                    errors.ChatAdminRequired, 
+                    errors.ChannelPrivate,
+                    errors.ChatInvalid,
+                    errors.PeerIdInvalid):
+                # Ini adalah grup yang sudah memblokir kamu atau di-ban Telegram
                 try:
                     await app.leave_chat(chat_id)
-                    left_count += 1
-                except:
-                    pass
-                    
+                    left += 1
+                except: pass
+                
             except errors.FloodWait as e:
-                # Jika terkena limit (FloodWait), istirahat sesuai durasi dari Telegram
-                await update_dashboard(f"⚠️ **FloodWait!** Limit terdeteksi.\n⏳ Istirahat paksa `{e.value}` detik.")
+                # Jika kena limit massal, lapor dan istirahat
+                await update_dashboard(f"⚠️ **FloodWait!** Limit `{e.value}` detik.\nMenunggu giliran aman...")
                 await asyncio.sleep(e.value)
-                # Coba kirim ulang setelah masa tunggu
+                # Coba sekali lagi setelah tunggu
                 try:
                     await app.send_message(chat_id, PROMO_TEXT)
-                    success_count += 1
-                except:
-                    failed_count += 1
-                    
+                    success += 1
+                except: failed += 1
+                
             except Exception:
-                failed_count += 1
+                failed += 1
 
-            # Edit dashboard setiap 5 grup agar aman dari limit edit pesan
-            if index % 5 == 0 or index + 1 == total_grup:
-                progress_pct = ((index + 1) / total_grup) * 100
+            # Update log setiap 10 grup agar tidak overload
+            if (index + 1) % 5 == 0 or (index + 1) == total_grup:
+                pct = ((index + 1) / total_grup) * 100
                 stats = (
-                    f"📤 **Status:** Promosi Berjalan\n\n"
-                    f"📊 **Progres:** {index + 1}/{total_grup} ({progress_pct:.1f}%)\n"
-                    f"✅ **Berhasil:** {success_count}\n"
-                    f"❌ **Gagal:** {failed_count}\n"
-                    f"🚪 **Auto-Leave:** {left_count}"
+                    f"📤 **Status:** Promosi Massal Aktif\n\n"
+                    f"📊 **Progres:** {index + 1}/{total_grup} ({pct:.1f}%)\n"
+                    f"✅ **Terkirim:** {success}\n"
+                    f"❌ **Gagal:** {failed}\n"
+                    f"🚪 **Grup Diblokir/Ban:** {left}\n"
+                    f"ℹ️ *Grup terblokir otomatis ditinggalkan.*"
                 )
                 await update_dashboard(stats)
 
-            # Jeda antar pesan (Sangat Penting! 30-60 detik agar akun aman)
-            await asyncio.sleep(random.randint(1, 6))
+            # JEDA AMAN (Sangat Penting untuk 600+ grup)
+            await asyncio.sleep(random.randint(1, 5))
 
-        # Ringkasan Akhir Putaran
+        # Selesai Putaran
         await update_dashboard(
             f"🏁 **Status:** Putaran Selesai!\n\n"
-            f"✅ **Total Terkirim:** {success_count}\n"
-            f"❌ **Total Gagal:** {failed_count}\n"
-            f"🚪 **Total Keluar:** {left_count}\n\n"
-            f"💤 **Mode:** Istirahat (1 Jam)"
+            f"✅ **Total Berhasil:** {success}\n"
+            f"❌ **Total Gagal:** {failed}\n"
+            f"🚪 **Total Grup Dihapus:** {left}\n\n"
+            f"💤 **Mode:** Istirahat (2 Jam)\n"
+            f"📅 *Putaran berikutnya akan otomatis dimulai.*"
         )
-        
-        # Jeda antar putaran (1 Jam / 3600 detik)
-        await asyncio.sleep(900)
+        # Istirahat 2 jam agar akun tidak dianggap spammer agresif
+        await asyncio.sleep(1800)
 
 if __name__ == "__main__":
     app.run(auto_promo())
