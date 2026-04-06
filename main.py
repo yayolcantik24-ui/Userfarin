@@ -15,20 +15,7 @@ WIB = pytz.timezone('Asia/Jakarta')
 
 # --- KONTEN PROMOSI TERBARU FARIN SHOP ---
 PROMO_TEXT = (
-"📱 **NOKOS MURAH & INSTAN** 📱\n"
-"﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌\n"
-"• Harga mulai Rp900\n"
-"• Banyak pilihan aplikasi\n"
-"• Auto refund saldo jika OTP tidak masuk\n"
-"• Deposit QRIS otomatis\n"
-"• Proses cepat & stabil\n\n"
-"🕘 Admin online 24/7\n"
-"⚡ Fast respon\n\n"
-"🤖 Bot order: @farinshop_bot\n"
-"🚀 **Langsung gas order sekarang!**\n\n"
-"﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌﹌\n"
-"BOT V1DE0 VIRAL 2026\n"
-"➡️ @Videoviralbokep_bot"
+"📱 **NOKOS MURAH & INSTAN** 📱\n\n• Harga mulai Rp900\n• Banyak pilihan aplikasi\n• Auto refund saldo jika OTP tidak masuk\n• Deposit QRIS otomatis\n• Proses cepat & stabil\n\n🕘 Admin online 24/7\n⚡ Fast respon\n\n🤖 Bot order: @farinshop_bot\n🚀 **Langsung gas order sekarang!**\n\n**FREE NOKOS NIH:**\n➡️ https://t.me/Freenokos2026_bot?start=7355538049"
 )
 
 status_msg_id = None
