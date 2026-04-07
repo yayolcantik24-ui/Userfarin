@@ -15,7 +15,18 @@ WIB = pytz.timezone('Asia/Jakarta')
 
 # --- KONTEN PROMOSI TERBARU FARIN SHOP ---
 PROMO_TEXT = (
-"📱 **NOKOS MURAH & INSTAN** 📱\n\n• Harga mulai Rp900\n• Banyak pilihan aplikasi\n• Auto refund saldo jika OTP tidak masuk\n• Deposit QRIS otomatis\n• Proses cepat & stabil\n\n🕘 Admin online 24/7\n⚡ Fast respon\n\n🤖 Bot order: @farinshop_bot\n🚀 **Langsung gas order sekarang!**\n\n**FREE NOKOS NIH:**\n➡️ https://t.me/Freenokos2026_bot?start=7355538049"
+"📱 **NOKOS MURAH & INSTAN** 📱\n\n"
+"• Harga mulai Rp900\n"
+"• Banyak pilihan aplikasi\n"
+"• Auto refund saldo jika OTP tidak masuk\n"
+"• Deposit QRIS otomatis\n"
+"• Proses cepat & stabil\n\n"
+"🕘 Admin online 24/7\n"
+"⚡ Fast respon\n\n"
+"🤖 Bot order: @farinshop_bot\n"
+"🚀 **Langsung gas order sekarang!**\n\n"
+"**FREE NOKOS NIH:**\n"
+"➡️ https://t.me/Freenokos2026_bot?start=7355538049"
 )
 
 status_msg_id = None
@@ -180,7 +191,7 @@ async def auto_promo():
                 pct = ((index + 1) / len(groups)) * 100
                 await update_dashboard(f"📤 **Promo Aktif**\n📊 {index+1}/{len(groups)} ({pct:.1f}%)\n✅ {s} | ❌ {f} | 🚪 {l}")
 
-            await asyncio.sleep(random.randint(1, 3))
+            await asyncio.sleep(random.randint(1, 2))
 
         await update_dashboard(f"🏁 **Selesai!**\n✅ {s} | 🚪 {l}\n💤 Istirahat: 10 menit")
         # Pesan penutup sesi
