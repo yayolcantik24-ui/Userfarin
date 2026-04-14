@@ -259,11 +259,11 @@ async def auto_promo():
                 pct = ((index + 1) / len(groups)) * 100
                 await update_dashboard(f"📤 **Promo Aktif**\n📊 {index+1}/{len(groups)} ({pct:.1f}%)\n✅ {s} | ❌ {f} | 🚪 {l}")
 
-            await asyncio.sleep(random.uniform(1.5, 5.0))
+            await asyncio.sleep(random.uniform(3.0, 5.0))
             
         await update_dashboard(f"🏁 **Selesai!**\n✅ {s} | 🚪 {l}\n💤 Istirahat: 10 menit")
         await app.send_message(LOG_CHANNEL, f"🏁 **PROMO SELESAI**\nBerhasil promosi ke {s} grup. Bot istirahat dulu.")
-        await asyncio.sleep(2000)
+        await asyncio.sleep(1800)
 
 if __name__ == "__main__":
     while True:
