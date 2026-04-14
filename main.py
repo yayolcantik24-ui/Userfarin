@@ -15,18 +15,19 @@ WIB = pytz.timezone('Asia/Jakarta')
 
 # --- KONTEN PROMOSI TERBARU FARIN SHOP ---
 PROMO_TEXT = (
-"📱 **NOKOS MURAH & INSTAN** 📱\n\n"
-"• Harga mulai Rp900\n"
-"• Banyak pilihan aplikasi\n"
-"• Auto refund saldo jika OTP tidak masuk\n"
-"• Deposit QRIS otomatis\n"
-"• Proses cepat & stabil\n\n"
-"🕘 Admin online 24/7\n"
-"⚡ Fast respon\n\n"
-"🤖 Bot order: @farinshop_bot\n"
-"🚀 **Langsung gas order sekarang!**\n\n"
-"**FREE NOKOS NIH:**\n"
-"➡️ https://t.me/Freenokos2026_bot?start=7355538049"
+"🚀 **FARIN SHOP – LAYANAN OTP TERCEPAT & TERMURAH!**\n\n"
+"Butuh OTP cepat & murah untuk WhatsApp, Telegram, Instagram, Facebook, dan banyak aplikasi lainnya?\n"
+"**Farin Shop solusinya!**\n\n"
+"✅ **Kenapa Pilih Farin Shop?**\n"
+"• Proses super cepat – OTP masuk dalam detik\n"
+"• Harga terjangkau – ada yang cuma 900p!\n"
+"• Banyak negara & server tersedia\n"
+"• Auto Order 24/7 – bot selalu online\n\n"
+"⚠️ **Garansi 100%** – Jika gagal, saldo dikembalikan\n\n"
+"🤖 **Order Sekarang di Telegram:**\n"
+"@FarinShop_bot\n\n"
+"**BOT CEK ID TELEGRAM NIH:**\n"
+"@cekid_kubot"
 )
 
 status_msg_id = None
@@ -123,7 +124,7 @@ async def handle_bulk_join(client, message):
             final_msg += f"\n**Detail Error:**\n{error_logs}"
         await report.edit_text(final_msg)
 
-# --- FITUR: AUTO PROMO ---
+# --- FITUR: AUTO PROMO (dengan log error lengkap) ---
 async def auto_promo():
     global promo_log_id
     try:
@@ -134,7 +135,7 @@ async def auto_promo():
     await update_dashboard("🚀 **Status:** Online\n📡 **System:** Fixed Join Folder Mode")
     
     while True:
-        promo_log_id = None # Reset log pesan setiap mulai sesi baru
+        promo_log_id = None
         await update_dashboard("🔍 **Status:** Scanning Groups...")
         groups = []
         try:
@@ -144,18 +145,21 @@ async def auto_promo():
         except: pass
 
         if not groups:
-            await update_dashboard("⚠️ **Status:** Grup Kosong."); await asyncio.sleep(300); continue
+            await update_dashboard("⚠️ **Status:** Grup Kosong.")
+            await asyncio.sleep(300)
+            continue
 
         random.shuffle(groups)
         s, f, l = 0, 0, 0
+        
+        # Cooldown untuk error log (agar tidak spam channel)
+        last_error_log_time = 0
 
         for index, chat_id in enumerate(groups):
             try:
-                # Mengirim pesan promo ke grup
                 await app.send_message(chat_id, PROMO_TEXT)
                 s += 1
                 
-                # Update Log (HANYA EDIT PESAN agar tidak spam)
                 current_time = datetime.now(WIB).strftime("%H:%M:%S")
                 log_text = (
                     f"📤 **PROMO PROGRESS**\n"
@@ -170,31 +174,90 @@ async def auto_promo():
                 await update_promo_log(log_text)
 
             except (errors.ChatWriteForbidden, errors.UserBannedInChannel, errors.ChannelPrivate):
-                # KIRIM PESAN BARU jika bot keluar grup agar muncul notifikasi
-                try: 
+                try:
                     await app.leave_chat(chat_id)
                     l += 1
-                    await app.send_message(LOG_CHANNEL, f"🚪 **AUTO LEAVE**\nBot baru saja keluar dari grup `{chat_id}` karena dilarang mengirim pesan.")
+                    # NOTIFIKASI DIHAPUS (tidak kirim pesan ke channel)
                 except: pass
+
             except errors.FloodWait as e:
-                # KIRIM PESAN BARU untuk info FloodWait
-                await app.send_message(LOG_CHANNEL, f"⏳ **FLOODWAIT**\nTerkena limit! Menunggu {e.value} detik sebelum lanjut.")
+                await app.send_message(LOG_CHANNEL, f"⏳ **FLOODWAIT**\nMenunggu {e.value} detik...")
                 await asyncio.sleep(e.value)
-                try: 
+                try:
                     await app.send_message(chat_id, PROMO_TEXT)
                     s += 1
-                except: f += 1
-            except: f += 1
+                except:
+                    f += 1
+
+            # ========== PENANGANAN ERROR LENGKAP ==========
+            except errors.PeerIdInvalid:
+                f += 1
+                now_ts = datetime.now().timestamp()
+                if now_ts - last_error_log_time >= 5:
+                    await app.send_message(LOG_CHANNEL, f"⚠️ **PeerIdInvalid**\nGrup `{chat_id}` tidak valid atau bot tidak pernah join.")
+                    last_error_log_time = now_ts
+
+            except errors.ChatAdminRequired:
+                f += 1
+                try:
+                    await app.leave_chat(chat_id)
+                    l += 1
+                    # NOTIFIKASI DIHAPUS
+                except:
+                    pass
+
+            except errors.RPCError as e:
+                f += 1
+                error_str = str(e)
+                
+                # 1. Grup di-restrict oleh Telegram -> leave tanpa notif
+                if "CHAT_RESTRICTED" in error_str:
+                    try:
+                        await app.leave_chat(chat_id)
+                        l += 1
+                        # NOTIFIKASI DIHAPUS
+                    except:
+                        pass
+                
+                # 2. Grup hanya admin / plain text dilarang -> leave tanpa notif
+                elif "CHAT_SEND_PLAIN_FORBIDDEN" in error_str or "SEND_PLAIN" in error_str:
+                    try:
+                        await app.leave_chat(chat_id)
+                        l += 1
+                        # NOTIFIKASI DIHAPUS
+                    except:
+                        pass
+                
+                # 3. Slowmode -> tidak leave, hanya log (biarkan tetap ada untuk monitoring)
+                elif "SLOWMODE_WAIT" in error_str:
+                    import re
+                    wait_match = re.search(r'wait of (\d+) seconds', error_str)
+                    wait_time = wait_match.group(1) if wait_match else "?"
+                    await app.send_message(LOG_CHANNEL, f"🐢 **SLOWMODE DETECTED**\nGrup `{chat_id}` memiliki jeda {wait_time} detik. Bot skip (tidak keluar).")
+                
+                # 4. FloodWait sudah ditangani di atas, jika masih masuk sini abaikan
+                elif "FLOOD_WAIT" not in error_str:
+                    now_ts = datetime.now().timestamp()
+                    if now_ts - last_error_log_time >= 5:
+                        await app.send_message(LOG_CHANNEL, f"❌ **RPCError (unhandled)**\nGrup: `{chat_id}`\nDetail: `{e}`")
+                        last_error_log_time = now_ts
+
+            except Exception as e:
+                f += 1
+                now_ts = datetime.now().timestamp()
+                if now_ts - last_error_log_time >= 5:
+                    await app.send_message(LOG_CHANNEL, f"🔥 **UNKNOWN ERROR**\nGrup: `{chat_id}`\nError: `{type(e).__name__}: {e}`")
+                    last_error_log_time = now_ts
+            # ===================================================
 
             # Update Dashboard Utama setiap 10 grup
             if (index + 1) % 10 == 0 or (index + 1) == len(groups):
                 pct = ((index + 1) / len(groups)) * 100
                 await update_dashboard(f"📤 **Promo Aktif**\n📊 {index+1}/{len(groups)} ({pct:.1f}%)\n✅ {s} | ❌ {f} | 🚪 {l}")
 
-            await asyncio.sleep(random.randint(1, 2))
-
+            await asyncio.sleep(random.uniform(1.5, 5.0))
+            
         await update_dashboard(f"🏁 **Selesai!**\n✅ {s} | 🚪 {l}\n💤 Istirahat: 10 menit")
-        # Pesan penutup sesi
         await app.send_message(LOG_CHANNEL, f"🏁 **PROMO SELESAI**\nBerhasil promosi ke {s} grup. Bot istirahat dulu.")
         await asyncio.sleep(2000)
 
