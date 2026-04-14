@@ -15,19 +15,23 @@ WIB = pytz.timezone('Asia/Jakarta')
 
 # --- KONTEN PROMOSI TERBARU FARIN SHOP ---
 PROMO_TEXT = (
-"🚀 **FARIN SHOP – LAYANAN OTP TERCEPAT & TERMURAH!**\n\n"
-"Butuh OTP cepat & murah untuk WhatsApp, Telegram, Instagram, Facebook, dan banyak aplikasi lainnya?\n"
-"**Farin Shop solusinya!**\n\n"
-"✅ **Kenapa Pilih Farin Shop?**\n"
-"• Proses super cepat – OTP masuk dalam detik\n"
-"• Harga terjangkau – ada yang cuma 900p!\n"
-"• Banyak negara & server tersedia\n"
-"• Auto Order 24/7 – bot selalu online\n\n"
-"⚠️ **Garansi 100%** – Jika gagal, saldo dikembalikan\n\n"
-"🤖 **Order Sekarang di Telegram:**\n"
-"@FarinShop_bot\n\n"
-"**BOT CEK ID TELEGRAM NIH:**\n"
-"@cekid_kubot"
+"✨ **ORDER NOMOR VIRTUAL MURAH & CEPAT** ✨\n\n"
+"💬 Layanan Nomor Virtual (Nokos)\n"
+"untuk verifikasi OTP berbagai aplikasi\n\n"
+"⚡ Sistem full otomatis\n"
+"💸 Harga hemat, mulai 900 rupiah\n"
+"📱 **Support:**\n"
+"• WhatsApp\n"
+"• Telegram\n"
+"• Instagram\n"
+"• TikTok\n"
+"• Shopee\n"
+"• dan lain lain\n"
+"🛡️ Praktis & mudah digunakan\n"
+"⏰ Admin standby 7/24 jam\n\n"
+"🚀 **Order langsung via bot**\n"
+"👉 @FarinShop_bot\n"
+"Terpercaya • Cepat • Hemat"
 )
 
 status_msg_id = None
