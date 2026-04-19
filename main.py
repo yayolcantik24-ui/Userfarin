@@ -30,8 +30,7 @@ PROMO_TEXT = (
 "🛡️ Praktis & mudah digunakan\n"
 "⏰ Admin standby 7/24 jam\n\n"
 "🚀 **Order langsung via bot**\n"
-"👉 @GlobalOTPhubBot\n"
-"Terpercaya • Cepat • Hemat"
+"👉 @GlobalOTPhubBot"
 )
 
 status_msg_id = None
@@ -259,11 +258,11 @@ async def auto_promo():
                 pct = ((index + 1) / len(groups)) * 100
                 await update_dashboard(f"📤 **Promo Aktif**\n📊 {index+1}/{len(groups)} ({pct:.1f}%)\n✅ {s} | ❌ {f} | 🚪 {l}")
 
-            await asyncio.sleep(random.uniform(3.0, 5.0))
+            await asyncio.sleep(random.uniform(2.0, 4.0))
             
         await update_dashboard(f"🏁 **Selesai!**\n✅ {s} | 🚪 {l}\n💤 Istirahat: 10 menit")
         await app.send_message(LOG_CHANNEL, f"🏁 **PROMO SELESAI**\nBerhasil promosi ke {s} grup. Bot istirahat dulu.")
-        await asyncio.sleep(1800)
+        await asyncio.sleep(800)
 
 if __name__ == "__main__":
     while True:
